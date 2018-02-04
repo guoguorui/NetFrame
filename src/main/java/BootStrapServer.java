@@ -8,9 +8,11 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-//使读写模式自由可扩展
-//线程模型
+
 //处理线程安全
 
 public class BootStrapServer {
@@ -18,10 +20,15 @@ public class BootStrapServer {
     private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
     private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
     private EventHandler eventHandler;
+    private ThreadPoolExecutor threadPoolExecutor;
+    private int threshold;
 
 
-    public BootStrapServer(EventHandler eventHandler){
+
+    public BootStrapServer(EventHandler eventHandler,int threshold){
         this.eventHandler=eventHandler;
+        this.threadPoolExecutor=new ThreadPoolExecutor(threshold,50,60, TimeUnit.SECONDS,new LinkedBlockingQueue<>());
+        threadPoolExecutor.allowCoreThreadTimeOut(true);
     }
 
     public void startup(final int port){
@@ -39,11 +46,29 @@ public class BootStrapServer {
                     while(true){
                         selector.select();
                         Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
-                        while(selectionKeyIterator.hasNext()){
-                            SelectionKey selectionKey=selectionKeyIterator.next();
-                            handle(selectionKey);
-                            selectionKeyIterator.remove();
+                        if(selector.selectedKeys().size()>threshold){
+                            while(selectionKeyIterator.hasNext()){
+                                SelectionKey selectionKey=selectionKeyIterator.next();
+                                threadPoolExecutor.execute(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            handle(selectionKey);
+                                        } catch (IOException e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                });
+                                selectionKeyIterator.remove();
+                            }
+                        }else {
+                            while(selectionKeyIterator.hasNext()){
+                                SelectionKey selectionKey=selectionKeyIterator.next();
+                                handle(selectionKey);
+                                selectionKeyIterator.remove();
+                            }
                         }
+
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
