@@ -1,4 +1,4 @@
-public class DefaultEventHandler implements EventHandler {
+public class MyEventHandler implements EventHandler {
 
     //用户接收从客户端读取到的字节数组
     public void onRead(byte[] readBytes){
