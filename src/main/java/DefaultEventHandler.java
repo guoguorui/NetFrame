@@ -1,10 +1,13 @@
 public class DefaultEventHandler implements EventHandler {
 
-    public void onRead(String message){
-        System.out.println("println from DefaultEventHandler.onRead------message:"+message);
+    //用户接收从客户端读取到的字节数组
+    public void onRead(byte[] readBytes){
+        System.out.println("server has read: "+new String(readBytes));
     }
 
-    public String onWrite(String message){
-        return "hello nico from EventHandle.onWrite and "+message;
+    //用户选择字节数组发送给客户端
+    public byte[] onWrite(){
+        String writeMessage="hello nico from server";
+        return writeMessage.getBytes();
     }
 }

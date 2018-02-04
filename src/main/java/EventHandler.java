@@ -1,7 +1,7 @@
 public interface EventHandler {
 
-    public void onRead(String message);
+    public void onRead(byte[] readBytes);
 
-    public String onWrite(String message);
+    public byte[] onWrite();
 
 }

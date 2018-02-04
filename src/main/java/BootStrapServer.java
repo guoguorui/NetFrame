@@ -7,6 +7,9 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
+//处理字节超过1024的情况
+//使读写模式自由可扩展
+
 public class BootStrapServer {
 
     public  ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
@@ -61,7 +64,7 @@ public class BootStrapServer {
             handleAccept(selectionKey);
         }
         else if(selectionKey.isWritable()){
-            handleWrite(selectionKey,"server");
+            handleWrite(selectionKey,"server".getBytes());
         }
         else if(selectionKey.isReadable()){
             handleRead(selectionKey);
@@ -75,26 +78,28 @@ public class BootStrapServer {
         socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
     }
 
-    public void handleWrite(SelectionKey selectionKey,String from) throws IOException{
+    public void handleWrite(SelectionKey selectionKey,byte[] from) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         writeBuffer.clear();
-        writeBuffer.put(eventHandler.onWrite(from).getBytes());
+        writeBuffer.put(eventHandler.onWrite());
         writeBuffer.flip();
         socketChannel.write(writeBuffer);
         socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
     public void handleRead(SelectionKey selectionKey) throws IOException{
-        String message=null;
+        //String message=null;
+        byte[] readBytes=null;
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         readBuffer.clear();
         try {
-            int readBytes = socketChannel.read(readBuffer);
-            if(readBytes>=0){
-                message=new String(readBuffer.array(),0,readBytes);
+            int readBytesCount = socketChannel.read(readBuffer);
+            if(readBytesCount>=0){
+                //message=new String(readBuffer.array(),0,readBytesCount);
+                readBytes=readBuffer.array();
                 //System.out.println("server receive: "+message);
             }
-            eventHandler.onRead(message);
+            eventHandler.onRead(readBytes);
         }
         catch (IOException e){
             socketChannel.close();
