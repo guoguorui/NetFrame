@@ -65,7 +65,7 @@ public class NioClient {
         writeBuffer.put("hello nico from client".getBytes());
         writeBuffer.flip();
         socketChannel.write(writeBuffer);
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
+        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
     public static void handleRead(SelectionKey selectionKey) throws IOException{
@@ -75,7 +75,7 @@ public class NioClient {
         if(readBytes>0){
             System.out.println("client receive: "+new String(readBuffer.array(),0,readBytes));
         }
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
+        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
     }
 
 }

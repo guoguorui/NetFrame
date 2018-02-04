@@ -1,7 +1,13 @@
-public interface EventHandler {
+import java.util.LinkedList;
+import java.util.Queue;
 
-    public void onRead(byte[] readBytes);
+public abstract class EventHandler {
 
-    public byte[] onWrite();
+    public Queue<byte[]> queue=new LinkedList<byte[]>();
 
+    public abstract void onRead(byte[] readBytes);
+
+    public void write(byte[] writeBytes){
+        queue.offer(writeBytes);
+    }
 }

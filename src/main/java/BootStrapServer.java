@@ -7,57 +7,65 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.Queue;
 
-//处理字节超过1024的情况
 //使读写模式自由可扩展
 //线程模型
+//处理线程安全
 
 public class BootStrapServer {
 
-    public  ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
-    public  ByteBuffer readBuffer=ByteBuffer.allocate(1024);
-    public EventHandler eventHandler;
+    private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
+    private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
+    private EventHandler eventHandler;
+
 
     public BootStrapServer(EventHandler eventHandler){
         this.eventHandler=eventHandler;
     }
 
-    public void startup(int port){
-        ServerSocketChannel serverSocketChannel=null;
-        Selector selector=null;
-        try {
-            selector=Selector.open();
-            serverSocketChannel=ServerSocketChannel.open();
-            serverSocketChannel.bind(new InetSocketAddress(port));
-            serverSocketChannel.configureBlocking(false);
-            serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-            while(true){
-                selector.select();
-                Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
-                while(selectionKeyIterator.hasNext()){
-                    SelectionKey selectionKey=selectionKeyIterator.next();
-                    handle(selectionKey);
-                    selectionKeyIterator.remove();
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if(selector!=null){
+    public void startup(final int port){
+        new Thread(){
+            @Override
+            public void run() {
+                ServerSocketChannel serverSocketChannel=null;
+                Selector selector=null;
                 try {
-                    selector.close();
+                    selector=Selector.open();
+                    serverSocketChannel=ServerSocketChannel.open();
+                    serverSocketChannel.bind(new InetSocketAddress(port));
+                    serverSocketChannel.configureBlocking(false);
+                    serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+                    while(true){
+                        selector.select();
+                        Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
+                        while(selectionKeyIterator.hasNext()){
+                            SelectionKey selectionKey=selectionKeyIterator.next();
+                            handle(selectionKey);
+                            selectionKeyIterator.remove();
+                        }
+                    }
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    if(selector!=null){
+                        try {
+                            selector.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    if(serverSocketChannel!=null){
+                        try {
+                            serverSocketChannel.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
                 }
             }
-            if(serverSocketChannel!=null){
-                try {
-                    serverSocketChannel.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+        }.start();
+
 
     }
 
@@ -65,10 +73,10 @@ public class BootStrapServer {
         if(selectionKey.isAcceptable()){
             handleAccept(selectionKey);
         }
-        else if(selectionKey.isWritable()){
+        if(selectionKey.isWritable()){
             handleWrite(selectionKey);
         }
-        else if(selectionKey.isReadable()){
+        if(selectionKey.isReadable()){
             handleRead(selectionKey);
         }
     }
@@ -77,22 +85,33 @@ public class BootStrapServer {
         ServerSocketChannel serverSocketChannel=(ServerSocketChannel)selectionKey.channel();
         SocketChannel socketChannel=(SocketChannel)serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
+        socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE | SelectionKey.OP_READ);
     }
+
 
     public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         writeBuffer.clear();
-        byte[] writeByteArray=eventHandler.onWrite();
-        //writeBuffer.put(eventHandler.onWrite());
-        for(int i=0;i<writeByteArray.length;i=i+1024){
-            for(int j=i;j<i+1024 && j<writeByteArray.length;j++){
-                writeBuffer.put(writeByteArray[j]);
-            }
+        //byte[] writeByteArray=eventHandler.write();
+        byte[] writeByteArray=eventHandler.queue.poll();
+        if(writeByteArray==null)
+            return;
+        if(writeByteArray.length<1024){
+            writeBuffer.put(writeByteArray);
             writeBuffer.flip();
             socketChannel.write(writeBuffer);
         }
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
+        else{
+            for(int i=0;i<writeByteArray.length;i=i+1024){
+                for(int j=i;j<i+1024 && j<writeByteArray.length;j++){
+                    writeBuffer.put(writeByteArray[j]);
+                }
+                writeBuffer.flip();
+                socketChannel.write(writeBuffer);
+                writeBuffer.clear();
+            }
+        }
+        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
     public void handleRead(SelectionKey selectionKey) throws IOException{
