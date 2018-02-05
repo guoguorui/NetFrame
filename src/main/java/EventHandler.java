@@ -1,13 +1,13 @@
-import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public abstract class EventHandler {
 
-    public Queue<byte[]> queue=new LinkedList<byte[]>();
+    public Queue<byte[]> sharedWriteQueue =new LinkedBlockingQueue<>();
 
-    public abstract void onRead(byte[] readBytes);
+    public abstract Reply onRead(byte[] readBytes);
 
-    public void write(byte[] writeBytes){
-        queue.offer(writeBytes);
+    public void writeToAll(byte[] writeBytes){
+        sharedWriteQueue.offer(writeBytes);
     }
 }

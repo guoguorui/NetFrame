@@ -6,12 +6,18 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+//服务端与客户端是点对点还是群发订阅？
+//具有自动调节threshold的能力
+//onRead()用于点对点，writeToAll()用于群发通知
+//给每个channel配置一个写字节组队列
+//考虑数据结构选择LinkedBlockingQueue是否合适
 
 public class BootStrapServer {
 
@@ -20,7 +26,7 @@ public class BootStrapServer {
     private EventHandler eventHandler;
     private ThreadPoolExecutor threadPoolExecutor;
     private int threshold;
-
+    private HashMap<SelectionKey,Queue<byte[]>> keyToWriteQueue=new HashMap<SelectionKey,Queue<byte[]>>();
 
     public BootStrapServer(EventHandler eventHandler,int threshold){
         this.eventHandler=eventHandler;
@@ -113,18 +119,23 @@ public class BootStrapServer {
         ServerSocketChannel serverSocketChannel=(ServerSocketChannel)selectionKey.channel();
         SocketChannel socketChannel=(SocketChannel)serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE | SelectionKey.OP_READ);
+        SelectionKey selectionKey1=socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE | SelectionKey.OP_READ);
+        keyToWriteQueue.put(selectionKey1,new LinkedBlockingQueue<byte[]>());
     }
 
 
     public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         ByteBuffer writeBuffer=writeBufferQueue.poll();
-        writeBuffer.clear();
-        //byte[] writeByteArray=eventHandler.write();
-        byte[] writeByteArray=eventHandler.queue.poll();
-        if(writeByteArray==null)
+        if(writeBuffer==null)
             return;
+        writeBuffer.clear();
+        byte[] writeByteArray=keyToWriteQueue.get(selectionKey).poll();
+        if(writeByteArray==null){
+            writeByteArray=eventHandler.sharedWriteQueue.poll();
+            if(writeByteArray==null)
+                return;
+        }
         if(writeByteArray.length<1024){
             writeBuffer.put(writeByteArray);
             writeBuffer.flip();
@@ -158,7 +169,11 @@ public class BootStrapServer {
                 readBytesCount=socketChannel.read(readBuffer);
             }
             readByteArray=byteArrayOutputStream.toByteArray();
-            eventHandler.onRead(readByteArray);
+            Reply reply=eventHandler.onRead(readByteArray);
+            if(reply.isWriteBack()) {
+                Queue<byte[]> queue=keyToWriteQueue.get(selectionKey);
+                queue.offer(reply.getWriteBytes());
+            }
         }
         catch (IOException e){
             socketChannel.close();

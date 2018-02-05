@@ -3,9 +3,9 @@ public class Server {
     public static void main(String[] args)
     {
         EventHandler eventHandler=new MyEventHandler();
-        eventHandler.write("hello nico before bootstrap\n".getBytes());
+        eventHandler.writeToAll("hello nico before bootstrap\n".getBytes());
         new BootStrapServer(eventHandler,10).startup(8080);
-        eventHandler.write("hello nico after bootstrap".getBytes());
+        eventHandler.writeToAll("hello nico after bootstrap".getBytes());
     }
 
 }
