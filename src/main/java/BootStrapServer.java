@@ -13,22 +13,25 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 
-//处理线程安全
-
 public class BootStrapServer {
 
-    private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
-    private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
+    private Queue<ByteBuffer> writeBufferQueue;
+    private Queue<ByteBuffer> readBufferQueue;
     private EventHandler eventHandler;
     private ThreadPoolExecutor threadPoolExecutor;
     private int threshold;
 
 
-
     public BootStrapServer(EventHandler eventHandler,int threshold){
         this.eventHandler=eventHandler;
+        this.threshold=threshold;
         this.threadPoolExecutor=new ThreadPoolExecutor(threshold,50,60, TimeUnit.SECONDS,new LinkedBlockingQueue<>());
-        threadPoolExecutor.allowCoreThreadTimeOut(true);
+        this.writeBufferQueue=new LinkedBlockingQueue<>(threshold);
+        this.readBufferQueue=new LinkedBlockingQueue<>(threshold);
+        for(int i=0;i<threshold;i++){
+            writeBufferQueue.add(ByteBuffer.allocate(1024));
+            readBufferQueue.add(ByteBuffer.allocate(1024));
+        }
     }
 
     public void startup(final int port){
@@ -116,6 +119,7 @@ public class BootStrapServer {
 
     public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
+        ByteBuffer writeBuffer=writeBufferQueue.poll();
         writeBuffer.clear();
         //byte[] writeByteArray=eventHandler.write();
         byte[] writeByteArray=eventHandler.queue.poll();
@@ -136,12 +140,14 @@ public class BootStrapServer {
                 writeBuffer.clear();
             }
         }
+        writeBufferQueue.add(writeBuffer);
         //socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
     public void handleRead(SelectionKey selectionKey) throws IOException{
         byte[] readByteArray=null;
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
+        ByteBuffer readBuffer=readBufferQueue.poll();
         readBuffer.clear();
         try {
             int readBytesCount=socketChannel.read(readBuffer);
@@ -158,6 +164,7 @@ public class BootStrapServer {
             socketChannel.close();
             selectionKey.cancel();
         }
+        readBufferQueue.add(readBuffer);
         //socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
     }
 
