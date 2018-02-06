@@ -8,6 +8,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -17,9 +18,9 @@ import java.util.concurrent.TimeUnit;
 //考虑数据结构选择LinkedBlockingQueue是否合适
 //优化线程模型
 //client支持超过1024字节的传输
-//当客户端断开后保持服务器正常运行
+//消息处理分段
 
-public class BootstrapServer {
+public class NioServer {
 
     private Queue<ByteBuffer> writeBufferQueue;
     private Queue<ByteBuffer> readBufferQueue;
@@ -28,7 +29,7 @@ public class BootstrapServer {
     private int threshold;
     private HashMap<SelectionKey,Queue<byte[]>> keyToWriteQueue=new HashMap<SelectionKey,Queue<byte[]>>();
 
-    public BootstrapServer(EventHandler eventHandler, int threshold){
+    public NioServer(EventHandler eventHandler, int threshold){
         this.eventHandler=eventHandler;
         this.threshold=threshold;
         this.threadPoolExecutor=new ThreadPoolExecutor(threshold,50,60, TimeUnit.SECONDS,new LinkedBlockingQueue<>());
@@ -40,7 +41,7 @@ public class BootstrapServer {
         }
     }
 
-    public void startup(final int port){
+    public NioServer startup(final int port){
         new Thread(){
             @Override
             public void run() {
@@ -99,8 +100,7 @@ public class BootstrapServer {
                 }
             }
         }.start();
-
-
+        return this;
     }
 
     public void handle(SelectionKey selectionKey) throws IOException{
@@ -126,16 +126,16 @@ public class BootstrapServer {
 
     public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
-        ByteBuffer writeBuffer=writeBufferQueue.poll();
-        if(writeBuffer==null)
-            return;
-        writeBuffer.clear();
         byte[] writeByteArray=keyToWriteQueue.get(selectionKey).poll();
         if(writeByteArray==null){
-            writeByteArray=eventHandler.sharedWriteQueue.poll();
-            if(writeByteArray==null)
-                return;
+            return;
         }
+        //取太早缓存区会疏漏回收
+        ByteBuffer writeBuffer=writeBufferQueue.poll();
+        if(writeBuffer==null){
+            return;
+        }
+        writeBuffer.clear();
         if(writeByteArray.length<1024){
             writeBuffer.put(writeByteArray);
             writeBuffer.flip();
@@ -151,7 +151,7 @@ public class BootstrapServer {
                 writeBuffer.clear();
             }
         }
-        writeBufferQueue.add(writeBuffer);
+        writeBufferQueue.offer(writeBuffer);
         //socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
@@ -181,6 +181,12 @@ public class BootstrapServer {
         }
         readBufferQueue.add(readBuffer);
         //socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
+    }
+
+    public void writeToAll(byte[] writeBytes){
+        for(Map.Entry<SelectionKey,Queue<byte[]>> entry:keyToWriteQueue.entrySet()){
+            entry.getValue().offer(writeBytes);
+        }
     }
 
 }

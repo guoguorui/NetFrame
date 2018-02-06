@@ -7,7 +7,6 @@ public abstract class EventHandler {
 
     public abstract Reply onRead(byte[] readBytes);
 
-
     //in client, all is one , that is its server
     public void writeToAll(byte[] writeBytes){
         sharedWriteQueue.offer(writeBytes);

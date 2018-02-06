@@ -6,13 +6,13 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
-public class BootstrapClient {
+public class NioClient {
 
     public  ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
     public  ByteBuffer readBuffer=ByteBuffer.allocate(1024);
     public EventHandler eventHandler;
 
-    public BootstrapClient(EventHandler eventHandler){
+    public NioClient(EventHandler eventHandler){
         this.eventHandler=eventHandler;
     }
 
