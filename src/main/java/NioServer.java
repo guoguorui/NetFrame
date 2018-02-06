@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit;
 //具有自动调节threshold的能力
 //考虑数据结构选择LinkedBlockingQueue是否合适
 //优化线程模型
-//client支持超过1024字节的传输
 //消息处理分段
+//命名规范
 
 public class NioServer {
 
@@ -27,7 +27,7 @@ public class NioServer {
     private EventHandler eventHandler;
     private ThreadPoolExecutor threadPoolExecutor;
     private int threshold;
-    private HashMap<SelectionKey,Queue<byte[]>> keyToWriteQueue=new HashMap<SelectionKey,Queue<byte[]>>();
+    private HashMap<SelectionKey,Queue<byte[]>> keyToWriteByteArrayQueue =new HashMap<SelectionKey,Queue<byte[]>>();
 
     public NioServer(EventHandler eventHandler, int threshold){
         this.eventHandler=eventHandler;
@@ -120,13 +120,13 @@ public class NioServer {
         SocketChannel socketChannel=(SocketChannel)serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
         SelectionKey selectionKey1=socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-        keyToWriteQueue.put(selectionKey1,new LinkedBlockingQueue<byte[]>());
+        keyToWriteByteArrayQueue.put(selectionKey1,new LinkedBlockingQueue<byte[]>());
     }
 
 
     public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
-        byte[] writeByteArray=keyToWriteQueue.get(selectionKey).poll();
+        byte[] writeByteArray= keyToWriteByteArrayQueue.get(selectionKey).poll();
         if(writeByteArray==null){
             return;
         }
@@ -152,7 +152,6 @@ public class NioServer {
             }
         }
         writeBufferQueue.offer(writeBuffer);
-        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
     public void handleRead(SelectionKey selectionKey) throws IOException{
@@ -171,7 +170,7 @@ public class NioServer {
             readByteArray=byteArrayOutputStream.toByteArray();
             Reply reply=eventHandler.onRead(readByteArray);
             if(reply.isWriteBack()) {
-                Queue<byte[]> queue=keyToWriteQueue.get(selectionKey);
+                Queue<byte[]> queue= keyToWriteByteArrayQueue.get(selectionKey);
                 queue.offer(reply.getWriteBytes());
             }
         }
@@ -180,11 +179,10 @@ public class NioServer {
             selectionKey.cancel();
         }
         readBufferQueue.add(readBuffer);
-        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
     }
 
     public void writeToAll(byte[] writeBytes){
-        for(Map.Entry<SelectionKey,Queue<byte[]>> entry:keyToWriteQueue.entrySet()){
+        for(Map.Entry<SelectionKey,Queue<byte[]>> entry: keyToWriteByteArrayQueue.entrySet()){
             entry.getValue().offer(writeBytes);
         }
     }

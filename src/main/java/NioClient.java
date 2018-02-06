@@ -1,3 +1,4 @@
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -8,9 +9,9 @@ import java.util.Iterator;
 
 public class NioClient {
 
-    public  ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
-    public  ByteBuffer readBuffer=ByteBuffer.allocate(1024);
-    public EventHandler eventHandler;
+    private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
+    private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
+    private EventHandler eventHandler;
 
     public NioClient(EventHandler eventHandler){
         this.eventHandler=eventHandler;
@@ -63,26 +64,43 @@ public class NioClient {
     public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         writeBuffer.clear();
-        byte[] writeBytes=eventHandler.sharedWriteQueue.poll();
-        if(writeBytes==null)
+        byte[] writeByteArray=eventHandler.writeQueue.poll();
+        if(writeByteArray==null)
             return;
-        writeBuffer.put(writeBytes);
-        writeBuffer.flip();
-        socketChannel.write(writeBuffer);
+        if(writeByteArray.length<1024){
+            writeBuffer.put(writeByteArray);
+            writeBuffer.flip();
+            socketChannel.write(writeBuffer);
+        }
+        else{
+            for(int i=0;i<writeByteArray.length;i=i+1024){
+                for(int j=i;j<i+1024 && j<writeByteArray.length;j++){
+                    writeBuffer.put(writeByteArray[j]);
+                }
+                writeBuffer.flip();
+                socketChannel.write(writeBuffer);
+                writeBuffer.clear();
+            }
+        }
     }
 
     public void handleRead(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         readBuffer.clear();
-        int readBytes=socketChannel.read(readBuffer);
-        if(readBytes>0){
-            //System.out.println("client receive: "+new String(readBuffer.array(),0,readBytes));
-            String readString=new String(readBuffer.array(),0,readBytes);
-            Reply reply=eventHandler.onRead(readString.getBytes());
-            if(reply.isWriteBack()){
-                eventHandler.sharedWriteQueue.offer(reply.getWriteBytes());
-            }
+        byte[] readByteArray=null;
+        int readBytesCount=socketChannel.read(readBuffer);
+        ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
+        while(readBytesCount>0){
+            byteArrayOutputStream.write(readBuffer.array(),0,readBytesCount);
+            readBuffer.clear();
+            readBytesCount=socketChannel.read(readBuffer);
         }
+        readByteArray=byteArrayOutputStream.toByteArray();
+        Reply reply=eventHandler.onRead(readByteArray);
+        if(reply.isWriteBack()) {
+            eventHandler.writeQueue.offer(reply.getWriteBytes());
+        }
+
     }
 
 }
