@@ -7,7 +7,4 @@ public abstract class EventHandler {
 
     public abstract Reply onRead(byte[] readBytes);
 
-    public void writeBack(byte[] writeBytes){
-        writeQueue.offer(writeBytes);
-    }
 }

@@ -15,10 +15,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 //具有自动调节threshold的能力
-//考虑数据结构选择LinkedBlockingQueue是否合适
-//优化线程模型
-//消息处理分段
-//命名规范
 
 public class NioServer {
 
@@ -56,7 +52,7 @@ public class NioServer {
                     while(true){
                         selector.select();
                         Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
-                        if(selector.selectedKeys().size()>threshold){
+                        if(selector.selectedKeys().size()>1){
                             while(selectionKeyIterator.hasNext()){
                                 SelectionKey selectionKey=selectionKeyIterator.next();
                                 threadPoolExecutor.execute(new Runnable() {
