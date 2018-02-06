@@ -6,16 +6,17 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
 
-public class NioClient {
+public class BootstrapClient {
 
-    public static ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
-    public static ByteBuffer readBuffer=ByteBuffer.allocate(1024);
+    public  ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
+    public  ByteBuffer readBuffer=ByteBuffer.allocate(1024);
+    public EventHandler eventHandler;
 
-    public static void main(String[] args){
-        startup();
+    public BootstrapClient(EventHandler eventHandler){
+        this.eventHandler=eventHandler;
     }
 
-    public static void startup(){
+    public void startup(String hostname,int port){
         SocketChannel socketChannel=null;
         Selector selector=null;
         try {
@@ -23,7 +24,7 @@ public class NioClient {
             socketChannel=SocketChannel.open();
             socketChannel.configureBlocking(false);
             socketChannel.register(selector, SelectionKey.OP_CONNECT);
-            socketChannel.connect(new InetSocketAddress("127.0.0.1",8080));
+            socketChannel.connect(new InetSocketAddress(hostname,port));
             while(true){
                 selector.select();
                 Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
@@ -39,43 +40,49 @@ public class NioClient {
 
     }
 
-    public static void handle(SelectionKey selectionKey) throws IOException{
+    public void handle(SelectionKey selectionKey) throws IOException{
         if(selectionKey.isConnectable()){
             handleConnect(selectionKey);
         }
-        else if(selectionKey.isWritable()){
+        if(selectionKey.isWritable()){
             handleWrite(selectionKey);
         }
-        else if(selectionKey.isReadable()){
+        if(selectionKey.isReadable()){
             handleRead(selectionKey);
         }
     }
 
-    public static void handleConnect(SelectionKey selectionKey) throws IOException{
+    public void handleConnect(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         if(selectionKey.isConnectable()){
             socketChannel.finishConnect();
         }
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
+        socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
-    public static void handleWrite(SelectionKey selectionKey) throws IOException{
+    public void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         writeBuffer.clear();
-        writeBuffer.put("hello nico from client".getBytes());
+        byte[] writeBytes=eventHandler.sharedWriteQueue.poll();
+        if(writeBytes==null)
+            return;
+        writeBuffer.put(writeBytes);
         writeBuffer.flip();
         socketChannel.write(writeBuffer);
-        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ);
     }
 
-    public static void handleRead(SelectionKey selectionKey) throws IOException{
+    public void handleRead(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         readBuffer.clear();
         int readBytes=socketChannel.read(readBuffer);
         if(readBytes>0){
-            System.out.println("client receive: "+new String(readBuffer.array(),0,readBytes));
+            //System.out.println("client receive: "+new String(readBuffer.array(),0,readBytes));
+            String readString=new String(readBuffer.array(),0,readBytes);
+            Reply reply=eventHandler.onRead(readString.getBytes());
+            if(reply.isWriteBack()){
+                eventHandler.sharedWriteQueue.offer(reply.getWriteBytes());
+            }
         }
-        //socketChannel.register(selectionKey.selector(),SelectionKey.OP_WRITE);
     }
 
 }

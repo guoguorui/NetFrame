@@ -13,13 +13,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-//服务端与客户端是点对点还是群发订阅？
 //具有自动调节threshold的能力
-//onRead()用于点对点，writeToAll()用于群发通知
-//给每个channel配置一个写字节组队列
 //考虑数据结构选择LinkedBlockingQueue是否合适
+//优化线程模型
+//client支持超过1024字节的传输
+//当客户端断开后保持服务器正常运行
 
-public class BootStrapServer {
+public class BootstrapServer {
 
     private Queue<ByteBuffer> writeBufferQueue;
     private Queue<ByteBuffer> readBufferQueue;
@@ -28,7 +28,7 @@ public class BootStrapServer {
     private int threshold;
     private HashMap<SelectionKey,Queue<byte[]>> keyToWriteQueue=new HashMap<SelectionKey,Queue<byte[]>>();
 
-    public BootStrapServer(EventHandler eventHandler,int threshold){
+    public BootstrapServer(EventHandler eventHandler, int threshold){
         this.eventHandler=eventHandler;
         this.threshold=threshold;
         this.threadPoolExecutor=new ThreadPoolExecutor(threshold,50,60, TimeUnit.SECONDS,new LinkedBlockingQueue<>());
