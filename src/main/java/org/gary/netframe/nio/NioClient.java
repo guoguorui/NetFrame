@@ -76,20 +76,12 @@ public class NioClient {
         byte[] writeByteArray=writeQueue.poll();
         if(writeByteArray==null)
             return;
-        if(writeByteArray.length<1024){
-            writeBuffer.put(writeByteArray);
+        for(int i=0;i<writeByteArray.length;i=i+1024){
+            int length=Math.min(1024,writeByteArray.length-i);
+            writeBuffer.put(writeByteArray,i,length);
             writeBuffer.flip();
             socketChannel.write(writeBuffer);
-        }
-        else{
-            for(int i=0;i<writeByteArray.length;i=i+1024){
-                for(int j=i;j<i+1024 && j<writeByteArray.length;j++){
-                    writeBuffer.put(writeByteArray[j]);
-                }
-                writeBuffer.flip();
-                socketChannel.write(writeBuffer);
-                writeBuffer.clear();
-            }
+            writeBuffer.clear();
         }
     }
 
