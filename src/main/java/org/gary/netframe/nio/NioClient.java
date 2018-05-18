@@ -16,10 +16,13 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class NioClient {
 
-    private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
-    private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
     private EventHandler eventHandler;
     private Queue<byte[]> writeQueue =new LinkedBlockingQueue<>();
+    private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
+    //private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
+    private ByteBuffer readBuffer;
+    private ByteBuffer headBuffer=ByteBuffer.allocate(4);
+    private int contentLength=-1;
 
     public NioClient(EventHandler eventHandler){
         this.eventHandler=eventHandler;
@@ -76,6 +79,11 @@ public class NioClient {
         byte[] writeByteArray=writeQueue.poll();
         if(writeByteArray==null)
             return;
+        int contentLength=writeByteArray.length;
+        writeBuffer.putInt(contentLength);
+        writeBuffer.flip();
+        socketChannel.write(writeBuffer);
+        writeBuffer.clear();
         for(int i=0;i<writeByteArray.length;i=i+1024){
             int length=Math.min(1024,writeByteArray.length-i);
             writeBuffer.put(writeByteArray,i,length);
@@ -87,19 +95,23 @@ public class NioClient {
 
     private void handleRead(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
-        readBuffer.clear();
-        byte[] readByteArray=null;
-        int readBytesCount=socketChannel.read(readBuffer);
-        ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
-        while(readBytesCount>0){
-            byteArrayOutputStream.write(readBuffer.array(),0,readBytesCount);
-            readBuffer.clear();
-            readBytesCount=socketChannel.read(readBuffer);
-        }
-        readByteArray=byteArrayOutputStream.toByteArray();
-        Reply reply=eventHandler.onRead(readByteArray);
-        if(reply.isWriteBack()) {
-            writeQueue.offer(reply.getWriteBytes());
+        if(contentLength==-1){
+            socketChannel.read(headBuffer);
+            if(!headBuffer.hasRemaining()){
+                headBuffer.flip();
+                contentLength=headBuffer.getInt();
+                readBuffer=ByteBuffer.allocate(contentLength);
+                headBuffer.clear();
+            }
+        }else{
+            socketChannel.read(readBuffer);
+            if(!readBuffer.hasRemaining()){
+                Reply reply=eventHandler.onRead(readBuffer.array());
+                if(reply.isWriteBack()) {
+                    writeQueue.offer(reply.getWriteBytes());
+                }
+                contentLength=-1;
+            }
         }
     }
 
