@@ -7,6 +7,7 @@ public class Client {
 
     public static void main(String[] args){
         EventHandler eventHandler=new ClientEventHandler();
-        new NioClient(eventHandler).startup("127.0.0.1",8888);
+        NioClient nioClient=new NioClient(eventHandler).startup("127.0.0.1",8888);
+        nioClient.writeToServer("hell nico from client".getBytes());
     }
 }

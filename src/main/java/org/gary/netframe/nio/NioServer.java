@@ -20,6 +20,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 //具有自动调节threshold的能力
+//连接中断时资源回收
+//给客户端添加写数据的接口
 
 public class NioServer {
 
@@ -27,12 +29,10 @@ public class NioServer {
     private Queue<ByteBuffer> readBufferQueue;
     private EventHandler eventHandler;
     private ThreadPoolExecutor threadPoolExecutor;
-    private int threshold;
     private HashMap<SelectionKey,Queue<byte[]>> keyToWriteByteArrayQueue =new HashMap<SelectionKey,Queue<byte[]>>();
 
     public NioServer(EventHandler eventHandler, int threshold){
         this.eventHandler=eventHandler;
-        this.threshold=threshold;
         this.threadPoolExecutor=new ThreadPoolExecutor(threshold,50,60, TimeUnit.SECONDS,new LinkedBlockingQueue<>());
         this.writeBufferQueue=new LinkedBlockingQueue<>(threshold);
         this.readBufferQueue=new LinkedBlockingQueue<>(threshold);
@@ -43,68 +43,65 @@ public class NioServer {
     }
 
     public NioServer startup(final int port){
-        new Thread(){
-            @Override
-            public void run() {
-                ServerSocketChannel serverSocketChannel=null;
-                Selector selector=null;
-                try {
-                    selector=Selector.open();
-                    serverSocketChannel=ServerSocketChannel.open();
-                    serverSocketChannel.bind(new InetSocketAddress(port));
-                    serverSocketChannel.configureBlocking(false);
-                    serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-                    while(true){
-                        selector.select();
-                        Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
-                        if(selector.selectedKeys().size()>1){
-                            while(selectionKeyIterator.hasNext()){
-                                SelectionKey selectionKey=selectionKeyIterator.next();
-                                threadPoolExecutor.execute(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        try {
-                                            handle(selectionKey);
-                                        } catch (IOException e) {
-                                            e.printStackTrace();
-                                        }
+        new Thread(()->{
+            ServerSocketChannel serverSocketChannel=null;
+            Selector selector=null;
+            try {
+                selector=Selector.open();
+                serverSocketChannel=ServerSocketChannel.open();
+                serverSocketChannel.bind(new InetSocketAddress(port));
+                serverSocketChannel.configureBlocking(false);
+                serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+                while(true){
+                    selector.select();
+                    Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
+                    if(selector.selectedKeys().size()>1){
+                        while(selectionKeyIterator.hasNext()){
+                            SelectionKey selectionKey=selectionKeyIterator.next();
+                            threadPoolExecutor.execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    try {
+                                        handle(selectionKey);
+                                    } catch (IOException e) {
+                                        e.printStackTrace();
                                     }
-                                });
-                                selectionKeyIterator.remove();
-                            }
-                        }else {
-                            while(selectionKeyIterator.hasNext()){
-                                SelectionKey selectionKey=selectionKeyIterator.next();
-                                handle(selectionKey);
-                                selectionKeyIterator.remove();
-                            }
+                                }
+                            });
+                            selectionKeyIterator.remove();
                         }
+                    }else {
+                        while(selectionKeyIterator.hasNext()){
+                            SelectionKey selectionKey=selectionKeyIterator.next();
+                            handle(selectionKey);
+                            selectionKeyIterator.remove();
+                        }
+                    }
 
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                if(selector!=null){
+                    try {
+                        selector.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } finally {
-                    if(selector!=null){
-                        try {
-                            selector.close();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                    if(serverSocketChannel!=null){
-                        try {
-                            serverSocketChannel.close();
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
+                }
+                if(serverSocketChannel!=null){
+                    try {
+                        serverSocketChannel.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
                 }
             }
-        }.start();
+        }).start();
         return this;
     }
 
-    public void handle(SelectionKey selectionKey) throws IOException{
+    private void handle(SelectionKey selectionKey) throws IOException{
         if(selectionKey.isAcceptable()){
             handleAccept(selectionKey);
         }
@@ -116,7 +113,7 @@ public class NioServer {
         }
     }
 
-    public void handleAccept(SelectionKey selectionKey) throws IOException{
+    private void handleAccept(SelectionKey selectionKey) throws IOException{
         ServerSocketChannel serverSocketChannel=(ServerSocketChannel)selectionKey.channel();
         SocketChannel socketChannel=(SocketChannel)serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
@@ -125,7 +122,7 @@ public class NioServer {
     }
 
 
-    public void handleWrite(SelectionKey selectionKey) throws IOException{
+    private void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         byte[] writeByteArray= keyToWriteByteArrayQueue.get(selectionKey).poll();
         if(writeByteArray==null){
@@ -155,7 +152,7 @@ public class NioServer {
         writeBufferQueue.offer(writeBuffer);
     }
 
-    public void handleRead(SelectionKey selectionKey) throws IOException{
+    private void handleRead(SelectionKey selectionKey) throws IOException{
         byte[] readByteArray=null;
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         ByteBuffer readBuffer=readBufferQueue.poll();

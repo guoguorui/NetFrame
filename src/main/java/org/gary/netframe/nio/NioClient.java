@@ -11,42 +11,46 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.util.Iterator;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class NioClient {
 
     private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
     private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
     private EventHandler eventHandler;
+    private Queue<byte[]> writeQueue =new LinkedBlockingQueue<>();
 
     public NioClient(EventHandler eventHandler){
         this.eventHandler=eventHandler;
     }
 
-    public void startup(String hostname,int port){
-        SocketChannel socketChannel=null;
-        Selector selector=null;
-        try {
-            selector=Selector.open();
-            socketChannel=SocketChannel.open();
-            socketChannel.configureBlocking(false);
-            socketChannel.register(selector, SelectionKey.OP_CONNECT);
-            socketChannel.connect(new InetSocketAddress(hostname,port));
-            while(true){
-                selector.select();
-                Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
-                while(selectionKeyIterator.hasNext()){
-                    SelectionKey selectionKey=selectionKeyIterator.next();
-                    handle(selectionKey);
-                    selectionKeyIterator.remove();
+    public NioClient startup(String hostname,int port){
+        new Thread(()->{SocketChannel socketChannel=null;
+            Selector selector=null;
+            try {
+                selector=Selector.open();
+                socketChannel=SocketChannel.open();
+                socketChannel.configureBlocking(false);
+                socketChannel.register(selector, SelectionKey.OP_CONNECT);
+                socketChannel.connect(new InetSocketAddress(hostname,port));
+                while(true){
+                    selector.select();
+                    Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
+                    while(selectionKeyIterator.hasNext()){
+                        SelectionKey selectionKey=selectionKeyIterator.next();
+                        handle(selectionKey);
+                        selectionKeyIterator.remove();
+                    }
                 }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
+        }).start();
+        return this;
     }
 
-    public void handle(SelectionKey selectionKey) throws IOException{
+    private void handle(SelectionKey selectionKey) throws IOException{
         if(selectionKey.isConnectable()){
             handleConnect(selectionKey);
         }
@@ -58,7 +62,7 @@ public class NioClient {
         }
     }
 
-    public void handleConnect(SelectionKey selectionKey) throws IOException{
+    private void handleConnect(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         if(selectionKey.isConnectable()){
             socketChannel.finishConnect();
@@ -66,10 +70,10 @@ public class NioClient {
         socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ | SelectionKey.OP_WRITE);
     }
 
-    public void handleWrite(SelectionKey selectionKey) throws IOException{
+    private void handleWrite(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         writeBuffer.clear();
-        byte[] writeByteArray=eventHandler.writeQueue.poll();
+        byte[] writeByteArray=writeQueue.poll();
         if(writeByteArray==null)
             return;
         if(writeByteArray.length<1024){
@@ -89,7 +93,7 @@ public class NioClient {
         }
     }
 
-    public void handleRead(SelectionKey selectionKey) throws IOException{
+    private void handleRead(SelectionKey selectionKey) throws IOException{
         SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
         readBuffer.clear();
         byte[] readByteArray=null;
@@ -103,9 +107,12 @@ public class NioClient {
         readByteArray=byteArrayOutputStream.toByteArray();
         Reply reply=eventHandler.onRead(readByteArray);
         if(reply.isWriteBack()) {
-            eventHandler.writeQueue.offer(reply.getWriteBytes());
+            writeQueue.offer(reply.getWriteBytes());
         }
+    }
 
+    public void writeToServer(byte[] writeBytes){
+        writeQueue.offer(writeBytes);
     }
 
 }
