@@ -21,6 +21,8 @@ import java.util.Iterator;
 public class NioServer {
 
     private EventLoopGroup eventLoopGroup;
+    private Selector selector;
+    private volatile boolean created;
 
     public NioServer(EventHandler eventHandler) {
         eventLoopGroup = new EventLoopGroup(eventHandler);
@@ -29,13 +31,13 @@ public class NioServer {
     public NioServer startup(final int port) {
         new Thread(() -> {
             ServerSocketChannel serverSocketChannel = null;
-            Selector selector = null;
             try {
                 selector = Selector.open();
                 serverSocketChannel = ServerSocketChannel.open();
                 serverSocketChannel.bind(new InetSocketAddress(port));
                 serverSocketChannel.configureBlocking(false);
                 serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+                created = true;
                 while (!Thread.interrupted()) {
                     selector.select();
                     Iterator<SelectionKey> selectionKeyIterator = selector.selectedKeys().iterator();
@@ -54,6 +56,7 @@ public class NioServer {
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
+                created = false;
                 if (selector != null) {
                     try {
                         selector.close();
@@ -83,7 +86,8 @@ public class NioServer {
     }
 
     public void writeToAll(byte[] content){
-
+        if(created)
+            eventLoopGroup.sendGroup(selector.keys(),content);
     }
 
 }

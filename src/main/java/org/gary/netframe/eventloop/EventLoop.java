@@ -18,9 +18,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 //多个Channel共享一个EventLoop
 class EventLoop implements Runnable {
 
-    private HashMap<SelectionKey, Pending> map = new HashMap<>();
-    private ByteBuffer headBuffer = ByteBuffer.allocate(4);
+    HashMap<SelectionKey, Pending> map = new HashMap<>();
     BlockingQueue<SelectionKey> queue = new LinkedBlockingQueue<>();
+    private ByteBuffer headBuffer = ByteBuffer.allocate(4);
     private SelectionKey selectionKey;
     private EventHandler eventHandler;
 

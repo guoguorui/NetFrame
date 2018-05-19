@@ -4,6 +4,7 @@ import org.gary.netframe.eventhandler.EventHandler;
 
 import java.nio.channels.SelectionKey;
 import java.util.ArrayList;
+import java.util.Set;
 
 //一个EventLoopGroup负责多个EventLoop，每一个EventLoop使用一个线程
 //EventLoopGroup使用阻塞队列通知EventLoop执行处理
@@ -24,6 +25,17 @@ public class EventLoopGroup{
             eventLoop.queue.put(selectionKey);
         } catch (InterruptedException e) {
             e.printStackTrace();
+        }
+    }
+
+    public void sendGroup(Set<SelectionKey> keyList, byte[] content){
+        for(SelectionKey key : keyList){
+            for(EventLoop eventLoop : list){
+                if(eventLoop.map.get(key)!=null){
+                    eventLoop.map.get(key).getWriteQueue().offer(content);
+                    break;
+                }
+            }
         }
     }
 
