@@ -1,37 +1,29 @@
 package org.gary.netframe.nio;
 
-import com.sun.org.apache.bcel.internal.generic.Select;
-import org.gary.netframe.buffer.Pending;
-import org.gary.netframe.buffer.StickyBuffer;
 import org.gary.netframe.eventhandler.EventHandler;
-import org.gary.netframe.eventhandler.Reply;
 import org.gary.netframe.eventloop.EventLoopGroup;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Queue;
 
-//具有自动调节threshold的能力
-//连接中断时资源回收
-//处理并发安全
-//考虑心跳检测
+//考虑eventloop自动扩容
+//考虑将ByteBuffer暴露给用户
+//处理连接中断后用户的写行为
+//重写群发功能
+//给用于预置序列化功能，所以需要重载方法
 
 public class NioServer {
 
-    private EventHandler eventHandler;
-
-    private EventLoopGroup eventLoopGroup = new EventLoopGroup();
+    private EventLoopGroup eventLoopGroup;
 
     public NioServer(EventHandler eventHandler) {
-        this.eventHandler = eventHandler;
+        eventLoopGroup = new EventLoopGroup(eventHandler);
     }
 
     public NioServer startup(final int port) {
@@ -54,7 +46,7 @@ public class NioServer {
                         if(selectionKey.isAcceptable()){
                             handleAccept(selectionKey);
                         }else if(selectionKey.isReadable() || selectionKey.isWritable()){
-                            eventLoopGroup.dispatch(selectionKey,eventHandler);
+                            eventLoopGroup.dispatch(selectionKey);
                         }
                         selectionKeyIterator.remove();
                     }
@@ -85,9 +77,13 @@ public class NioServer {
         ServerSocketChannel serverSocketChannel = (ServerSocketChannel) selectionKey.channel();
         SocketChannel socketChannel = serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
-        SelectionKey selectionKey1 = socketChannel.register(selectionKey.selector(), SelectionKey.OP_WRITE | SelectionKey.OP_READ);
+        socketChannel.register(selectionKey.selector(), SelectionKey.OP_WRITE | SelectionKey.OP_READ);
         Socket socket=socketChannel.socket();
         System.out.println("与客户端建立连接"+socket.getInetAddress()+":"+socket.getPort());
+    }
+
+    public void writeToAll(byte[] content){
+
     }
 
 }

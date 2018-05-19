@@ -9,20 +9,19 @@ import java.util.ArrayList;
 //EventLoopGroup使用阻塞队列通知EventLoop执行处理
 public class EventLoopGroup{
 
-    private static final int LOOP_THREADS = Math.min(1, Runtime.getRuntime().availableProcessors()*2);
+    private static final int DEFAULT_LOOP_THREADS = Math.max(1, Runtime.getRuntime().availableProcessors()*2);
+    private ArrayList<EventLoop> list = new ArrayList<>(DEFAULT_LOOP_THREADS);
 
-    private ArrayList<EventLoop> list = new ArrayList<>(LOOP_THREADS);
-
-    public EventLoopGroup() {
-        for(int i=0;i<LOOP_THREADS;i++)
-            list.add(new EventLoop());
+    public EventLoopGroup(EventHandler eventHandler) {
+        for(int i = 0; i< DEFAULT_LOOP_THREADS; i++)
+            list.add(new EventLoop(eventHandler));
     }
 
-    public void dispatch(SelectionKey selectionKey, EventHandler eventHandler){
-        int index = selectionKey.hashCode() % LOOP_THREADS;
+    public void dispatch(SelectionKey selectionKey){
+        int index = selectionKey.hashCode() % DEFAULT_LOOP_THREADS;
         EventLoop eventLoop = list.get(index);
         try {
-            eventLoop.queue.put(new EventSource(selectionKey,eventHandler));
+            eventLoop.queue.put(selectionKey);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

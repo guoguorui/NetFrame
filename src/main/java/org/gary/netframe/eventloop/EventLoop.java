@@ -20,21 +20,22 @@ class EventLoop implements Runnable {
 
     private HashMap<SelectionKey, Pending> map = new HashMap<>();
     private ByteBuffer headBuffer = ByteBuffer.allocate(4);
+    BlockingQueue<SelectionKey> queue = new LinkedBlockingQueue<>();
     private SelectionKey selectionKey;
     private EventHandler eventHandler;
-    BlockingQueue<EventSource> queue = new LinkedBlockingQueue<>();
 
-    EventLoop(){
+
+    EventLoop(EventHandler eventHandler){
+        this.eventHandler = eventHandler;
         Thread thread = new Thread(this);
         thread.start();
     }
 
     @Override
     public void run() {
-        while (getSource()){
+        while (getSelectionKey()){
             try {
-                //System.out.println(Thread.currentThread()+"开始处理事件");
-                handle(selectionKey, eventHandler);
+                handle(selectionKey);
             } catch (IOException e) {
                 SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
                 Socket socket = socketChannel.socket();
@@ -45,10 +46,9 @@ class EventLoop implements Runnable {
         }
     }
 
-    private boolean getSource(){
+    private boolean getSelectionKey(){
         try {
-            EventSource source = queue.take();
-            setSource(source.getSelectionKey(),source.getEventHandler());
+            selectionKey = queue.take();
         } catch (InterruptedException e) {
             e.printStackTrace();
             return false;
@@ -56,12 +56,8 @@ class EventLoop implements Runnable {
         return true;
     }
 
-    private void setSource(SelectionKey selectionKey, EventHandler eventHandler) {
-        this.selectionKey = selectionKey;
-        this.eventHandler = eventHandler;
-    }
 
-    private void handle(SelectionKey selectionKey, EventHandler eventHandler) throws IOException {
+    private void handle(SelectionKey selectionKey) throws IOException {
         if(!selectionKey.isValid())
             return;
         if (map.get(selectionKey) == null)
@@ -70,7 +66,7 @@ class EventLoop implements Runnable {
             handleWrite(selectionKey);
         }
         if (selectionKey.isReadable()) {
-            handleRead(selectionKey, eventHandler);
+            handleRead(selectionKey);
         }
     }
 
@@ -96,7 +92,7 @@ class EventLoop implements Runnable {
         }
     }
 
-    private void handleRead(SelectionKey selectionKey, EventHandler eventHandler) throws IOException {
+    private void handleRead(SelectionKey selectionKey) throws IOException {
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
         Pending pending = map.get(selectionKey);
         StickyBuffer stickyBuffer = pending.getStickyBuffer();
@@ -104,6 +100,8 @@ class EventLoop implements Runnable {
             stickyBuffer = new StickyBuffer();
         int contentLength = stickyBuffer.getContentLength();
         ByteBuffer readBuffer = stickyBuffer.getByteBuffer();
+        //才测试上看，socketChannel.read(headBuffer)并没有完成读取操作，从headBuffer读取才算
+        //也可能是数据头与数据体刚好在同一个包中匹配
         if (contentLength == -1) {
             socketChannel.read(headBuffer);
             if (!headBuffer.hasRemaining()) {
@@ -128,5 +126,7 @@ class EventLoop implements Runnable {
         //此时的stickBuffer是被新建的，需要保存
         pending.setStickyBuffer(stickyBuffer);
     }
+
+
 
 }

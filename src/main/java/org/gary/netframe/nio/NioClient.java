@@ -55,6 +55,19 @@ public class NioClient {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
+            } finally {
+                try {
+                    if(selector!=null)
+                        selector.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                try {
+                    if(socketChannel!=null)
+                        socketChannel.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }).start();
         return this;
