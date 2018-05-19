@@ -19,7 +19,6 @@ public class NioClient {
     private EventHandler eventHandler;
     private Queue<byte[]> writeQueue =new LinkedBlockingQueue<>();
     private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
-    //private ByteBuffer readBuffer=ByteBuffer.allocate(1024);
     private ByteBuffer readBuffer;
     private ByteBuffer headBuffer=ByteBuffer.allocate(4);
     private int contentLength=-1;
@@ -37,7 +36,7 @@ public class NioClient {
                 socketChannel.configureBlocking(false);
                 socketChannel.register(selector, SelectionKey.OP_CONNECT);
                 socketChannel.connect(new InetSocketAddress(hostname,port));
-                while(true){
+                while (!Thread.interrupted()) {
                     selector.select();
                     Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
                     while(selectionKeyIterator.hasNext()){
