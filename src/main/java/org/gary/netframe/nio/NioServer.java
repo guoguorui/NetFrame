@@ -5,11 +5,11 @@ import org.gary.netframe.buffer.Pending;
 import org.gary.netframe.buffer.StickyBuffer;
 import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventhandler.Reply;
+import org.gary.netframe.eventloop.EventLoopGroup;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -17,9 +17,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 //具有自动调节threshold的能力
 //连接中断时资源回收
@@ -29,8 +27,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class NioServer {
 
     private EventHandler eventHandler;
-    private HashMap<SelectionKey, Pending> map=new HashMap<>();
-    private ByteBuffer headBuffer = ByteBuffer.allocate(4);
+    //private HashMap<SelectionKey, Pending> map=new HashMap<>();
+    //private ByteBuffer headBuffer = ByteBuffer.allocate(4);
+    private EventLoopGroup eventLoopGroup = new EventLoopGroup();
 
     public NioServer(EventHandler eventHandler) {
         this.eventHandler = eventHandler;
@@ -51,16 +50,23 @@ public class NioServer {
                     Iterator<SelectionKey> selectionKeyIterator = selector.selectedKeys().iterator();
                     while (selectionKeyIterator.hasNext()) {
                         SelectionKey selectionKey = selectionKeyIterator.next();
-                        try {
+                        if(selectionKey.isAcceptable()){
+                            handleAccept(selectionKey);
+                        }else if(selectionKey.isReadable() || selectionKey.isWritable()){
+                            eventLoopGroup.dispatch(selectionKey,eventHandler);
+                        }
+                        selectionKeyIterator.remove();
+                        /*try {
                             handle(selectionKey);
                         } catch (IOException e) {
                             SocketChannel socketChannel=(SocketChannel)selectionKey.channel();
                             Socket socket=socketChannel.socket();
                             System.out.println("客户端主动中断"+socket.getInetAddress()+":"+socket.getPort());
+                            map.remove(selectionKey);
                             selectionKey.cancel();
                         }finally {
                             selectionKeyIterator.remove();
-                        }
+                        }*/
                     }
                 }
             } catch (IOException e) {
@@ -85,7 +91,7 @@ public class NioServer {
         return this;
     }
 
-    private void handle(SelectionKey selectionKey) throws IOException {
+    /*private void handle(SelectionKey selectionKey) throws IOException {
         if (selectionKey.isAcceptable()) {
             handleAccept(selectionKey);
         }
@@ -95,17 +101,17 @@ public class NioServer {
         if (selectionKey.isReadable()) {
             handleRead(selectionKey);
         }
-    }
+    }*/
 
     private void handleAccept(SelectionKey selectionKey) throws IOException {
         ServerSocketChannel serverSocketChannel = (ServerSocketChannel) selectionKey.channel();
         SocketChannel socketChannel = serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
         SelectionKey selectionKey1 = socketChannel.register(selectionKey.selector(), SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-        map.put(selectionKey1,new Pending());
+        //map.put(selectionKey1,new Pending());
     }
 
-    private void handleWrite(SelectionKey selectionKey) throws IOException {
+    /*private void handleWrite(SelectionKey selectionKey) throws IOException {
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
         Pending pending=map.get(selectionKey);
         byte[] writeByteArray = pending.getWriteQueue().poll();
@@ -128,11 +134,11 @@ public class NioServer {
     }
 
     private void handleRead(SelectionKey selectionKey) throws IOException {
+        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
         Pending pending=map.get(selectionKey);
         StickyBuffer stickyBuffer = pending.getStickyBuffer();
         if (stickyBuffer == null)
             stickyBuffer = new StickyBuffer();
-        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
         int contentLength = stickyBuffer.getContentLength();
         ByteBuffer readBuffer = stickyBuffer.getByteBuffer();
         if (contentLength == -1) {
@@ -141,7 +147,6 @@ public class NioServer {
                 headBuffer.flip();
                 contentLength = headBuffer.getInt();
                 stickyBuffer.setContentLength(contentLength);
-                System.out.println(contentLength);
                 stickyBuffer.setByteBuffer(ByteBuffer.allocate(contentLength));
                 headBuffer.clear();
             }
@@ -157,13 +162,14 @@ public class NioServer {
                 stickyBuffer.setContentLength(-1);
             }
         }
+        //此时的stickBuffer是被新建的，需要保存
         pending.setStickyBuffer(stickyBuffer);
-    }
+    }*/
 
-    public void writeToAll(byte[] writeBytes) {
+    /*public void writeToAll(byte[] writeBytes) {
         for(Pending pending : map.values()){
             pending.getWriteQueue().offer(writeBytes);
         }
-    }
+    }*/
 
 }

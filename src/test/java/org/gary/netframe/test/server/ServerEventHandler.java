@@ -7,8 +7,11 @@ public class ServerEventHandler extends EventHandler {
 
     @Override
     public Reply onRead(byte[] readBytes){
-        System.out.println("server receive: "+new String(readBytes));
-        return new Reply(true,"I am server, I got that".getBytes());
+        String receive = new String(readBytes);
+        System.out.println("server receive: " + receive);
+        String[] ss = receive.split(" ");
+        String id =ss[ss.length-1];
+        return new Reply(true,("I am server, I got that "+id).getBytes());
     }
 
 }

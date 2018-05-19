@@ -8,7 +8,7 @@ public class Server {
     public static void main(String[] args)
     {
         EventHandler eventHandler=new ServerEventHandler();
-        NioServer nioServer=new NioServer(eventHandler,10).startup(8888);
+        NioServer nioServer=new NioServer(eventHandler).startup(8888);
     }
 
 }
