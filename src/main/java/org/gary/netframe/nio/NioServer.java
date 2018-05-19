@@ -1,5 +1,7 @@
 package org.gary.netframe.nio;
 
+import com.sun.org.apache.bcel.internal.generic.Select;
+import org.gary.netframe.buffer.Pending;
 import org.gary.netframe.buffer.StickyBuffer;
 import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventhandler.Reply;
@@ -27,11 +29,10 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class NioServer {
 
     private EventHandler eventHandler;
-    private HashMap<SelectionKey, Queue<byte[]>> keyToWriteByteArrayQueue = new HashMap<>();
-    private HashMap<SelectionKey, StickyBuffer> keyToReadBuffer = new HashMap<>();
+    private HashMap<SelectionKey, Pending> map=new HashMap<>();
     private ByteBuffer headBuffer = ByteBuffer.allocate(4);
 
-    public NioServer(EventHandler eventHandler, int threshold) {
+    public NioServer(EventHandler eventHandler) {
         this.eventHandler = eventHandler;
     }
 
@@ -101,16 +102,16 @@ public class NioServer {
         SocketChannel socketChannel = serverSocketChannel.accept();
         socketChannel.configureBlocking(false);
         SelectionKey selectionKey1 = socketChannel.register(selectionKey.selector(), SelectionKey.OP_WRITE | SelectionKey.OP_READ);
-        keyToWriteByteArrayQueue.put(selectionKey1, new LinkedBlockingQueue<byte[]>());
+        map.put(selectionKey1,new Pending());
     }
 
     private void handleWrite(SelectionKey selectionKey) throws IOException {
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
-        byte[] writeByteArray = keyToWriteByteArrayQueue.get(selectionKey).poll();
+        Pending pending=map.get(selectionKey);
+        byte[] writeByteArray = pending.getWriteQueue().poll();
         if (writeByteArray == null) {
             return;
         }
-        //取太早缓存区会疏漏回收
         ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
         int contentLength = writeByteArray.length;
         writeBuffer.putInt(contentLength);
@@ -127,7 +128,8 @@ public class NioServer {
     }
 
     private void handleRead(SelectionKey selectionKey) throws IOException {
-        StickyBuffer stickyBuffer = keyToReadBuffer.get(selectionKey);
+        Pending pending=map.get(selectionKey);
+        StickyBuffer stickyBuffer = pending.getStickyBuffer();
         if (stickyBuffer == null)
             stickyBuffer = new StickyBuffer();
         SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
@@ -148,19 +150,19 @@ public class NioServer {
             if (!readBuffer.hasRemaining()) {
                 Reply reply = eventHandler.onRead(readBuffer.array());
                 if (reply.isWriteBack()) {
-                    Queue<byte[]> queue = keyToWriteByteArrayQueue.get(selectionKey);
+                    Queue<byte[]> queue = pending.getWriteQueue();
                     queue.offer(reply.getWriteBytes());
                 }
                 stickyBuffer.setByteBuffer(null);
                 stickyBuffer.setContentLength(-1);
             }
         }
-        keyToReadBuffer.put(selectionKey, stickyBuffer);
+        pending.setStickyBuffer(stickyBuffer);
     }
 
     public void writeToAll(byte[] writeBytes) {
-        for (Map.Entry<SelectionKey, Queue<byte[]>> entry : keyToWriteByteArrayQueue.entrySet()) {
-            entry.getValue().offer(writeBytes);
+        for(Pending pending : map.values()){
+            pending.getWriteQueue().offer(writeBytes);
         }
     }
 

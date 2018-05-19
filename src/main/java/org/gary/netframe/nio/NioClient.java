@@ -53,7 +53,6 @@ public class NioClient {
                         selectionKeyIterator.remove();
                     }
                 }
-                System.out.println("跳出了while");
             } catch (IOException e) {
                 e.printStackTrace();
             }
