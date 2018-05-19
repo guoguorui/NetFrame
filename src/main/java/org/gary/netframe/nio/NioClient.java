@@ -6,6 +6,7 @@ import org.gary.netframe.eventhandler.Reply;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -41,10 +42,18 @@ public class NioClient {
                     Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
                     while(selectionKeyIterator.hasNext()){
                         SelectionKey selectionKey=selectionKeyIterator.next();
-                        handle(selectionKey);
+                        try {
+                            handle(selectionKey);
+                        } catch (IOException e) {
+                            SocketChannel socketChannel1=(SocketChannel)selectionKey.channel();
+                            Socket socket=socketChannel1.socket();
+                            System.out.println("服务端主动中断或没有启动"+socket.getInetAddress()+":"+socket.getPort());
+                            Thread.currentThread().interrupt();
+                        }
                         selectionKeyIterator.remove();
                     }
                 }
+                System.out.println("跳出了while");
             } catch (IOException e) {
                 e.printStackTrace();
             }

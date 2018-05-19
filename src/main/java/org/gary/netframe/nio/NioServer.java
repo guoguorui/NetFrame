@@ -6,6 +6,7 @@ import org.gary.netframe.eventhandler.Reply;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -21,6 +22,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 //具有自动调节threshold的能力
 //连接中断时资源回收
 //处理并发安全
+//考虑心跳检测
 
 public class NioServer {
 
@@ -48,8 +50,16 @@ public class NioServer {
                     Iterator<SelectionKey> selectionKeyIterator = selector.selectedKeys().iterator();
                     while (selectionKeyIterator.hasNext()) {
                         SelectionKey selectionKey = selectionKeyIterator.next();
-                        handle(selectionKey);
-                        selectionKeyIterator.remove();
+                        try {
+                            handle(selectionKey);
+                        } catch (IOException e) {
+                            SocketChannel socketChannel=(SocketChannel)selectionKey.channel();
+                            Socket socket=socketChannel.socket();
+                            System.out.println("客户端主动中断"+socket.getInetAddress()+":"+socket.getPort());
+                            selectionKey.cancel();
+                        }finally {
+                            selectionKeyIterator.remove();
+                        }
                     }
                 }
             } catch (IOException e) {
