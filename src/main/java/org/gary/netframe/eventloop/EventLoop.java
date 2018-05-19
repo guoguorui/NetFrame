@@ -62,6 +62,8 @@ class EventLoop implements Runnable {
     }
 
     private void handle(SelectionKey selectionKey, EventHandler eventHandler) throws IOException {
+        if(!selectionKey.isValid())
+            return;
         if (map.get(selectionKey) == null)
             map.put(selectionKey, new Pending());
         if (selectionKey.isWritable()) {
