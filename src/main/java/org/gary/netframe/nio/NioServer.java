@@ -1,5 +1,7 @@
 package org.gary.netframe.nio;
 
+import org.gary.netframe.common.BytesInt;
+import org.gary.netframe.common.BytesObject;
 import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventloop.EventLoopGroup;
 
@@ -14,9 +16,6 @@ import java.util.Iterator;
 
 //考虑eventloop自动扩容
 //考虑将ByteBuffer暴露给用户
-//处理连接中断后用户的写行为
-//重写群发功能
-//给用于预置序列化功能，所以需要重载方法
 
 public class NioServer {
 
@@ -88,6 +87,18 @@ public class NioServer {
     public void writeToAll(byte[] content){
         if(created)
             eventLoopGroup.sendGroup(selector.keys(),content);
+    }
+
+    public void writeToAll(String s){
+        writeToAll(s.getBytes());
+    }
+
+    public void writeToAll(int i){
+        writeToAll(BytesInt.int2bytes(i));
+    }
+
+    public void writeToAll(Object object, Class clazz){
+        writeToAll(BytesObject.serialize(object,clazz));
     }
 
 }

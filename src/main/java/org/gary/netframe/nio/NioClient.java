@@ -1,9 +1,10 @@
 package org.gary.netframe.nio;
 
+import org.gary.netframe.common.BytesInt;
+import org.gary.netframe.common.BytesObject;
 import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventhandler.Reply;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -23,6 +24,7 @@ public class NioClient {
     private ByteBuffer readBuffer;
     private ByteBuffer headBuffer=ByteBuffer.allocate(4);
     private int contentLength=-1;
+    private volatile boolean disconnect;
 
     public NioClient(EventHandler eventHandler){
         this.eventHandler=eventHandler;
@@ -56,6 +58,7 @@ public class NioClient {
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
+                disconnect = true;
                 try {
                     if(selector!=null)
                         selector.close();
@@ -135,8 +138,22 @@ public class NioClient {
         }
     }
 
-    public void writeToServer(byte[] writeBytes){
+    public void writeToServer(byte[] writeBytes) throws Exception{
+        if(disconnect)
+            throw new Exception("NioClient is valid");
         writeQueue.offer(writeBytes);
+    }
+
+    public void writeToServer(String s) throws Exception{
+        writeToServer(s.getBytes());
+    }
+
+    public void writeToServer(int i) throws Exception{
+        writeToServer(BytesInt.int2bytes(i));
+    }
+
+    public void writeToServer(Object object, Class clazz) throws Exception{
+        writeToServer(BytesObject.serialize(object,clazz));
     }
 
 }

@@ -9,14 +9,14 @@ public class Server {
     {
         EventHandler eventHandler=new ServerEventHandler();
         NioServer nioServer=new NioServer(eventHandler).startup(8888);
-        for (int i = 0; i < 100; i++) {
+        /*for (int i = 0; i < 100; i++) {
             nioServer.writeToAll(("hello nico from server "+i).getBytes());
             try {
                 Thread.sleep(1000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-        }
+        }*/
     }
 
 }
