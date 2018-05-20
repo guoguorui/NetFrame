@@ -1,7 +1,6 @@
 package org.gary.netframe.eventhandler;
 
 import org.gary.netframe.common.BytesInt;
-import org.gary.netframe.common.BytesObject;
 import org.gary.netframe.nio.NioClient;
 
 public class ClientEventHandler extends EventHandler{
@@ -12,26 +11,25 @@ public class ClientEventHandler extends EventHandler{
         this.nioClient=nioClient;
     }
 
-    public boolean writeToServer(byte[] content){
-        return nioClient!=null && nioClient.writeToServer(content);
+    public void writeToServer(byte[] content){
+        nioClient.writeToServer(content);
     }
 
-    public boolean writeToServer(String s){
-        return writeToServer(s.getBytes());
+    public void writeToServer(String s){
+         writeToServer(s.getBytes());
     }
 
-    public boolean writeToServer(int i){
-        return writeToServer(BytesInt.int2bytes(i));
-    }
-
-    public boolean writeToServer(Object object, Class clazz){
-        return writeToServer(BytesObject.serialize(object,clazz));
+    public void writeToServer(int i){
+         writeToServer(BytesInt.int2bytes(i));
     }
 
     @Override
     public void onException(Throwable cause) {
-        cause.printStackTrace();
         nioClient=null;
+    }
+
+    public void connectAvailable() throws Exception{
+        nioClient.connectAvailable();
     }
 
 

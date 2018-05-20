@@ -1,7 +1,6 @@
 package org.gary.netframe.nio;
 
 import org.gary.netframe.eventhandler.ClientEventHandler;
-import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventhandler.Reply;
 
 import java.io.IOException;
@@ -18,38 +17,41 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class NioClient {
 
     private ClientEventHandler eventHandler;
-    private Queue<byte[]> writeQueue =new LinkedBlockingQueue<>();
-    private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
+    private Queue<byte[]> writeQueue = new LinkedBlockingQueue<>();
+    private ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
     private ByteBuffer readBuffer;
-    private ByteBuffer headBuffer=ByteBuffer.allocate(4);
-    private int contentLength=-1;
+    private ByteBuffer headBuffer = ByteBuffer.allocate(4);
+    private int contentLength = -1;
     private volatile boolean disconnect;
+    //0代表还未完成连接，1代表连接成功，-1代表连接失败
+    private volatile int connectAvailable;
 
-    public NioClient(ClientEventHandler eventHandler){
-        this.eventHandler=eventHandler;
+    public NioClient(ClientEventHandler eventHandler) {
+        this.eventHandler = eventHandler;
     }
 
-    public void startup(String hostname,int port){
-        new Thread(()->{SocketChannel socketChannel=null;
-            Selector selector=null;
+    public void startup(String hostname, int port) {
+        new Thread(() -> {
+            SocketChannel socketChannel = null;
+            Selector selector = null;
             try {
-                selector=Selector.open();
-                socketChannel=SocketChannel.open();
+                selector = Selector.open();
+                socketChannel = SocketChannel.open();
                 socketChannel.configureBlocking(false);
                 socketChannel.register(selector, SelectionKey.OP_CONNECT);
-                socketChannel.connect(new InetSocketAddress(hostname,port));
+                socketChannel.connect(new InetSocketAddress(hostname, port));
                 while (!Thread.interrupted()) {
                     selector.select();
-                    Iterator<SelectionKey> selectionKeyIterator=selector.selectedKeys().iterator();
-                    while(selectionKeyIterator.hasNext()){
-                        SelectionKey selectionKey=selectionKeyIterator.next();
+                    Iterator<SelectionKey> selectionKeyIterator = selector.selectedKeys().iterator();
+                    while (selectionKeyIterator.hasNext()) {
+                        SelectionKey selectionKey = selectionKeyIterator.next();
                         try {
                             handle(selectionKey);
                         } catch (IOException e) {
                             eventHandler.onException(e);
-                            SocketChannel socketChannel1=(SocketChannel)selectionKey.channel();
-                            Socket socket=socketChannel1.socket();
-                            System.out.println("服务端主动中断或没有启动"+socket.getInetAddress()+":"+socket.getPort());
+                            SocketChannel socketChannel1 = (SocketChannel) selectionKey.channel();
+                            Socket socket = socketChannel1.socket();
+                            System.out.println("服务端主动中断" + socket.getInetAddress() + ":" + socket.getPort());
                             Thread.currentThread().interrupt();
                         }
                         selectionKeyIterator.remove();
@@ -60,14 +62,15 @@ public class NioClient {
                 //e.printStackTrace();
             } finally {
                 disconnect = true;
+                connectAvailable = -1;
                 try {
-                    if(selector!=null)
+                    if (selector != null)
                         selector.close();
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
                 try {
-                    if(socketChannel!=null)
+                    if (socketChannel != null)
                         socketChannel.close();
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -77,73 +80,82 @@ public class NioClient {
         eventHandler.onActive(this);
     }
 
-    private void handle(SelectionKey selectionKey) throws IOException{
-        if(selectionKey.isConnectable()){
+    private void handle(SelectionKey selectionKey) throws IOException {
+        if (selectionKey.isConnectable()) {
             handleConnect(selectionKey);
         }
-        if(selectionKey.isWritable()){
+        if (selectionKey.isWritable()) {
             handleWrite(selectionKey);
         }
-        if(selectionKey.isReadable()){
+        if (selectionKey.isReadable()) {
             handleRead(selectionKey);
         }
     }
 
-    private void handleConnect(SelectionKey selectionKey) throws IOException{
-        SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
-        if(selectionKey.isConnectable()){
+    private void handleConnect(SelectionKey selectionKey) throws IOException {
+        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
+        if (selectionKey.isConnectable()) {
             socketChannel.finishConnect();
         }
-        socketChannel.register(selectionKey.selector(),SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        socketChannel.register(selectionKey.selector(), SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+        connectAvailable = 1;
+        System.out.println("与服务器建立连接"+socketChannel.socket().getRemoteSocketAddress());
     }
 
-    private void handleWrite(SelectionKey selectionKey) throws IOException{
-        SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
+    private void handleWrite(SelectionKey selectionKey) throws IOException {
+        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
         writeBuffer.clear();
-        byte[] writeByteArray=writeQueue.poll();
-        if(writeByteArray==null)
+        byte[] writeByteArray = writeQueue.poll();
+        if (writeByteArray == null)
             return;
-        int contentLength=writeByteArray.length;
+        int contentLength = writeByteArray.length;
         writeBuffer.putInt(contentLength);
         writeBuffer.flip();
         socketChannel.write(writeBuffer);
         writeBuffer.clear();
-        for(int i=0;i<writeByteArray.length;i=i+1024){
-            int length=Math.min(1024,writeByteArray.length-i);
-            writeBuffer.put(writeByteArray,i,length);
+        for (int i = 0; i < writeByteArray.length; i = i + 1024) {
+            int length = Math.min(1024, writeByteArray.length - i);
+            writeBuffer.put(writeByteArray, i, length);
             writeBuffer.flip();
             socketChannel.write(writeBuffer);
             writeBuffer.clear();
         }
     }
 
-    private void handleRead(SelectionKey selectionKey) throws IOException{
-        SocketChannel socketChannel=(SocketChannel) selectionKey.channel();
-        if(contentLength==-1){
+    private void handleRead(SelectionKey selectionKey) throws IOException {
+        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
+        if (contentLength == -1) {
             socketChannel.read(headBuffer);
-            if(!headBuffer.hasRemaining()){
+            if (!headBuffer.hasRemaining()) {
                 headBuffer.flip();
-                contentLength=headBuffer.getInt();
-                readBuffer=ByteBuffer.allocate(contentLength);
+                contentLength = headBuffer.getInt();
+                readBuffer = ByteBuffer.allocate(contentLength);
                 headBuffer.clear();
             }
-        }else{
+        } else {
             socketChannel.read(readBuffer);
-            if(!readBuffer.hasRemaining()){
-                Reply reply=eventHandler.onRead(readBuffer.array());
-                if(reply.isWriteBack()) {
+            if (!readBuffer.hasRemaining()) {
+                Reply reply = eventHandler.onRead(readBuffer.array());
+                if (reply.isWriteBack()) {
                     writeQueue.offer(reply.getWriteBytes());
                 }
-                contentLength=-1;
+                contentLength = -1;
             }
         }
     }
 
-    public boolean writeToServer(byte[] writeBytes){
-        if(disconnect)
-            return false;
+    public void connectAvailable() throws Exception {
+        while (connectAvailable < 1) {
+            if (connectAvailable == -1)
+                throw new Exception("fail to connect");
+        }
+    }
+
+    //NioClient负责设置连接状态，用户负责检测状态
+    //另外一种设计方案是在这里检测状态，恰时向用户抛出异常
+    //这里暂时选用前一种方案
+    public void writeToServer(byte[] writeBytes) {
         writeQueue.offer(writeBytes);
-        return true;
     }
 
 }

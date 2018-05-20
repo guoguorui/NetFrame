@@ -19,8 +19,9 @@ public class NioServer {
 
     private EventLoopGroup eventLoopGroup;
     private Selector selector;
-    private volatile boolean created;
     private ServerEventHandler eventHandler;
+    private volatile int connectAvailable;
+
 
     public NioServer(ServerEventHandler eventHandler) {
         this.eventHandler = eventHandler;
@@ -36,7 +37,7 @@ public class NioServer {
                 serverSocketChannel.bind(new InetSocketAddress(port));
                 serverSocketChannel.configureBlocking(false);
                 serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-                created = true;
+                connectAvailable = 1;
                 while (!Thread.interrupted()) {
                     selector.select();
                     Iterator<SelectionKey> selectionKeyIterator = selector.selectedKeys().iterator();
@@ -56,7 +57,7 @@ public class NioServer {
                 eventHandler.onException(e);
                 //e.printStackTrace();
             } finally {
-                created = false;
+                connectAvailable = -1;
                 if (selector != null) {
                     try {
                         selector.close();
@@ -85,11 +86,15 @@ public class NioServer {
         System.out.println("与客户端建立连接"+socket.getInetAddress()+":"+socket.getPort());
     }
 
-    public boolean writeToAll(byte[] content){
-        if(!created)
-            return false;
+    public void writeToAll(byte[] content){
         eventLoopGroup.sendGroup(selector.keys(),content);
-        return true;
+    }
+
+    public void connectAvailable() throws Exception {
+        while (connectAvailable < 1) {
+            if (connectAvailable == -1)
+                throw new Exception("fail to connect");
+        }
     }
 
 }
