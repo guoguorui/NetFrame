@@ -1,9 +1,9 @@
 package org.gary.netframe.test.server;
 
-import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventhandler.Reply;
+import org.gary.netframe.eventhandler.ServerEventHandler;
 
-public class ServerEventHandler extends EventHandler {
+public class MyServerEventHandler extends ServerEventHandler {
 
     @Override
     public Reply onRead(byte[] readBytes){

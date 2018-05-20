@@ -3,6 +3,7 @@ package org.gary.netframe.nio;
 import org.gary.netframe.common.BytesInt;
 import org.gary.netframe.common.BytesObject;
 import org.gary.netframe.eventhandler.EventHandler;
+import org.gary.netframe.eventhandler.ServerEventHandler;
 import org.gary.netframe.eventloop.EventLoopGroup;
 
 import java.io.IOException;
@@ -22,14 +23,14 @@ public class NioServer {
     private EventLoopGroup eventLoopGroup;
     private Selector selector;
     private volatile boolean created;
-    private EventHandler eventHandler;
+    private ServerEventHandler eventHandler;
 
-    public NioServer(EventHandler eventHandler) {
+    public NioServer(ServerEventHandler eventHandler) {
         this.eventHandler = eventHandler;
         eventLoopGroup = new EventLoopGroup(eventHandler);
     }
 
-    public NioServer startup(final int port) {
+    public void startup(final int port) {
         new Thread(() -> {
             ServerSocketChannel serverSocketChannel = null;
             try {
@@ -75,7 +76,7 @@ public class NioServer {
                 }
             }
         }).start();
-        return this;
+        eventHandler.onActive(this);
     }
 
     private void handleAccept(SelectionKey selectionKey) throws IOException {
@@ -87,21 +88,11 @@ public class NioServer {
         System.out.println("与客户端建立连接"+socket.getInetAddress()+":"+socket.getPort());
     }
 
-    public void writeToAll(byte[] content){
-        if(created)
-            eventLoopGroup.sendGroup(selector.keys(),content);
-    }
-
-    public void writeToAll(String s){
-        writeToAll(s.getBytes());
-    }
-
-    public void writeToAll(int i){
-        writeToAll(BytesInt.int2bytes(i));
-    }
-
-    public void writeToAll(Object object, Class clazz){
-        writeToAll(BytesObject.serialize(object,clazz));
+    public boolean writeToAll(byte[] content){
+        if(!created)
+            return false;
+        eventLoopGroup.sendGroup(selector.keys(),content);
+        return true;
     }
 
 }

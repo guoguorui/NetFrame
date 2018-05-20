@@ -1,9 +1,9 @@
 package org.gary.netframe.test.client;
 
-import org.gary.netframe.eventhandler.EventHandler;
+import org.gary.netframe.eventhandler.ClientEventHandler;
 import org.gary.netframe.eventhandler.Reply;
 
-public class ClientEventHandler extends EventHandler {
+public class MyClientEventHandler extends ClientEventHandler {
 
     @Override
     public Reply onRead(byte[] readBytes) {
@@ -12,8 +12,4 @@ public class ClientEventHandler extends EventHandler {
         return new Reply(false,null);
     }
 
-    @Override
-    public void onException(Throwable cause) {
-        super.onException(cause);
-    }
 }

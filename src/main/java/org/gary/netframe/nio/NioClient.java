@@ -1,7 +1,6 @@
 package org.gary.netframe.nio;
 
-import org.gary.netframe.common.BytesInt;
-import org.gary.netframe.common.BytesObject;
+import org.gary.netframe.eventhandler.ClientEventHandler;
 import org.gary.netframe.eventhandler.EventHandler;
 import org.gary.netframe.eventhandler.Reply;
 
@@ -18,7 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 public class NioClient {
 
-    private EventHandler eventHandler;
+    private ClientEventHandler eventHandler;
     private Queue<byte[]> writeQueue =new LinkedBlockingQueue<>();
     private ByteBuffer writeBuffer=ByteBuffer.allocate(1024);
     private ByteBuffer readBuffer;
@@ -26,11 +25,11 @@ public class NioClient {
     private int contentLength=-1;
     private volatile boolean disconnect;
 
-    public NioClient(EventHandler eventHandler){
+    public NioClient(ClientEventHandler eventHandler){
         this.eventHandler=eventHandler;
     }
 
-    public NioClient startup(String hostname,int port){
+    public void startup(String hostname,int port){
         new Thread(()->{SocketChannel socketChannel=null;
             Selector selector=null;
             try {
@@ -75,7 +74,7 @@ public class NioClient {
                 }
             }
         }).start();
-        return this;
+        eventHandler.onActive(this);
     }
 
     private void handle(SelectionKey selectionKey) throws IOException{
@@ -140,22 +139,11 @@ public class NioClient {
         }
     }
 
-    public void writeToServer(byte[] writeBytes) throws Exception{
+    public boolean writeToServer(byte[] writeBytes){
         if(disconnect)
-            throw new Exception("NioClient is valid");
+            return false;
         writeQueue.offer(writeBytes);
-    }
-
-    public void writeToServer(String s) throws Exception{
-        writeToServer(s.getBytes());
-    }
-
-    public void writeToServer(int i) throws Exception{
-        writeToServer(BytesInt.int2bytes(i));
-    }
-
-    public void writeToServer(Object object, Class clazz) throws Exception{
-        writeToServer(BytesObject.serialize(object,clazz));
+        return true;
     }
 
 }
