@@ -47,6 +47,7 @@ public class NioClient {
                         try {
                             handle(selectionKey);
                         } catch (IOException e) {
+                            eventHandler.onException(e);
                             SocketChannel socketChannel1=(SocketChannel)selectionKey.channel();
                             Socket socket=socketChannel1.socket();
                             System.out.println("服务端主动中断或没有启动"+socket.getInetAddress()+":"+socket.getPort());
@@ -56,7 +57,8 @@ public class NioClient {
                     }
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                eventHandler.onException(e);
+                //e.printStackTrace();
             } finally {
                 disconnect = true;
                 try {

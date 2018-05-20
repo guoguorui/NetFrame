@@ -22,8 +22,10 @@ public class NioServer {
     private EventLoopGroup eventLoopGroup;
     private Selector selector;
     private volatile boolean created;
+    private EventHandler eventHandler;
 
     public NioServer(EventHandler eventHandler) {
+        this.eventHandler = eventHandler;
         eventLoopGroup = new EventLoopGroup(eventHandler);
     }
 
@@ -53,7 +55,8 @@ public class NioServer {
                     }
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                eventHandler.onException(e);
+                //e.printStackTrace();
             } finally {
                 created = false;
                 if (selector != null) {

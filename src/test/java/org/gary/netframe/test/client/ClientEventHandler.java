@@ -11,4 +11,9 @@ public class ClientEventHandler extends EventHandler {
         //return new Reply(true,"hello nico from client".getBytes());
         return new Reply(false,null);
     }
+
+    @Override
+    public void onException(Throwable cause) {
+        super.onException(cause);
+    }
 }

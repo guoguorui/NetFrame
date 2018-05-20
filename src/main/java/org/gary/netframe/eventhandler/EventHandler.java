@@ -7,4 +7,8 @@ public abstract class EventHandler {
 
     public abstract Reply onRead(byte[] readBytes);
 
+    public void onException(Throwable cause){
+        cause.printStackTrace();
+    }
+
 }
