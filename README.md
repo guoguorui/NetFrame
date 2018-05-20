@@ -1,28 +1,29 @@
 # NetFrame
-usage of server:
+服务端用法：
 ```
-EventHandler eventHandler=new ServerEventHandler();
-NioServer nioServer=new NioServer(eventHandler,10).startup(8888);
+ServerEventHandler eventHandler=new MyServerEventHandler();
+new NioServer(eventHandler).startup(8888);
 ```
-you should extends abstract class org.gary.netframe.eventhandler.EventHandler, and override method public org.gary.netframe.eventhandler.Reply onRead(byte[] readBytes){}, and if you want to write back to the remote peer after receiving data, you should return a org.gary.netframe.eventhandler.Reply object which the second parameter contains the data to send.
+其中的MyServerEventHandler继承ServerEventHandler，用户可以重写其中的onRead方法对接收到的数据进行处理
 ```
 @Override
 public Reply onRead(byte[] readBytes){
-    System.out.println("server receive: "+new String(readBytes));
-    return new Reply(true,"I am server, I got that".getBytes());
+    String receive = new String(readBytes);
+    System.out.println("server receive: " + receive);
+    String[] ss = receive.split(" ");
+    String id =ss[ss.length-1];
+    return new Reply(true,("I am server, I got that "+id).getBytes());
 }
 ```
-
-
-if you want to write data after bootstrap and startup the server, it must be noted that this sentence would send the data to all the connected remote peer, if not remote peer exist, the data would be ignored. client can't do like this:
+其中的Reply代表了服务端对该客户端进行响应，如果不需要响应，则传入false和null参数<br><br>
+服务端还可以对所有连接用户进行群发信息：
 ```
-nioServer.writeToAll("hello nico per second ".getBytes());
+eventHandler.writeToAll("hello nico from server ".getBytes())
 ```
-
-
-usage of client:
+注意，用户的写操作都会返回一个boolean，如果该值是false，则代表连接已中断，发送无效<br><br>
+客户端用法：
 ```
-EventHandler eventHandler=new ClientEventHandler();
-NioClient nioClient=new NioClient(eventHandler).startup("127.0.0.1",8888);
-nioClient.writeToServer("hell nico from client".getBytes());
+ClientEventHandler eventHandler=new MyClientEventHandler();
+new NioClient(eventHandler).startup("127.0.0.1",8888);
+eventHandler.writeToServer("hell nico from client")
 ```

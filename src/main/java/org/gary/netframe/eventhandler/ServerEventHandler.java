@@ -4,7 +4,7 @@ import org.gary.netframe.common.BytesInt;
 import org.gary.netframe.common.BytesObject;
 import org.gary.netframe.nio.NioServer;
 
-public abstract class ServerEventHandler extends EventHandler {
+public class ServerEventHandler extends EventHandler {
 
     private NioServer nioServer;
 

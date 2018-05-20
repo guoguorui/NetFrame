@@ -4,7 +4,7 @@ import org.gary.netframe.common.BytesInt;
 import org.gary.netframe.common.BytesObject;
 import org.gary.netframe.nio.NioClient;
 
-public abstract class ClientEventHandler extends EventHandler{
+public class ClientEventHandler extends EventHandler{
 
     private NioClient nioClient;
 
